@@ -117,7 +117,7 @@
         <footer class="footer">
             <div class="footer-content">
                 <div class="copyright">
-                    <span>© 2025 Domains-Support v1.0.8</span>
+                    <span>© 2025 Domains-Support v1.0.9</span>
                     <span class="separator">|</span>
                     <span>作者：饭奇骏</span>
                     <span class="separator">|</span>
@@ -526,7 +526,7 @@ const handleRefresh = async () => {
         ElMessage.info('正在检查域名状态...')
 
         // 并行检查所有域名状态
-        const statusChecks = domains.value.map(async (domain) => {
+        const statusChecks = domains.value.map(async (domain:Domain) => {
             const status = await checkDomainStatus(domain.domain)
             const updatedDomain = await updateDomainStatus(domain.domain, status)
             return updatedDomain
