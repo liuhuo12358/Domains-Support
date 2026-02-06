@@ -127,9 +127,12 @@ const rules = {
 // 监听对话框可见性
 watch(() => props.visible, (newVal: boolean) => {
     dialogVisible.value = newVal
-    if (newVal && !props.isEdit) {
-        // 新建时重置表单
-        form.value = { ...defaultForm }
+    if (newVal) {
+        if (props.editData) {
+            form.value = { ...props.editData }
+        } else {
+            form.value = { ...defaultForm }
+        }
     }
 })
 

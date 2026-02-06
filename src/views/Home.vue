@@ -17,6 +17,16 @@
                                     <Plus />
                                 </el-icon>新增
                             </el-dropdown-item>
+                            <el-dropdown-item @click="handleCopyAdd">
+                                <el-icon>
+                                    <CopyDocument />
+                                </el-icon>复制新增
+                            </el-dropdown-item>
+                            <el-dropdown-item @click="handleCopyInfo">
+                                <el-icon>
+                                    <CopyDocument />
+                                </el-icon>{{ copyInfoLabel }}
+                            </el-dropdown-item>
                             <el-dropdown-item @click="handleConfig">
                                 <el-icon>
                                     <Setting />
@@ -51,8 +61,8 @@
                 class="search-input" />
         </div>
 
-        <el-table :data="paginatedDomains" border style="width: 100%" class="custom-table" @selection-change="handleSelectionChange">
-            <el-table-column type="selection" width="55" align="center" />
+        <el-table ref="domainTableRef" :data="paginatedDomains" border style="width: 100%" class="custom-table" @selection-change="handleSelectionChange">
+            <el-table-column type="selection" width="55" align="center" :selectable="isRowSelectable" />
             <el-table-column type="index" label="序号" width="60" align="center">
                 <template #default="scope">
                     {{ (currentPage - 1) * pageSize + scope.$index + 1 }}
@@ -144,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, Delete, Download, Edit, Moon, Plus, Refresh, Search, Setting, Sunny, SwitchButton, Upload } from '@element-plus/icons-vue'
+import { ArrowDown, CopyDocument, Delete, Download, Edit, Moon, Plus, Refresh, Search, Setting, Sunny, SwitchButton, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -186,7 +196,7 @@ const pageSize = ref(20)
 const filteredDomains = computed(() => {
     if (!searchQuery.value) return domains.value
     const query = searchQuery.value.toLowerCase()
-    return domains.value.filter(domain => 
+    return domains.value.filter((domain: Domain) => 
         domain.domain.toLowerCase().includes(query) ||
         domain.registrar?.toLowerCase().includes(query) ||
         domain.memo?.toLowerCase().includes(query)
@@ -224,6 +234,10 @@ const configVisible = ref(false)
 const isEdit = ref(false)
 const editData = ref<Domain>()
 const importVisible = ref(false)
+const domainTableRef = ref()
+const copyMode = ref(false)
+const copySource = ref<Domain>()
+const copyInfoLabel = computed(() => (copyMode.value ? '确认复制' : '复制信息'))
 
 // 暗黑模式状态
 const isDarkMode = ref(localStorage.getItem('darkMode') === 'true')
@@ -244,6 +258,119 @@ const handleAdd = () => {
     isEdit.value = false
     editData.value = undefined
     dialogVisible.value = true
+}
+
+const handleCopyAdd = () => {
+    if (selectedRows.value.length === 0) {
+        ElMessage.warning('请先选择一条记录')
+        return
+    }
+    if (selectedRows.value.length > 1) {
+        ElMessage.warning('只能选择一条记录进行复制新增')
+        return
+    }
+
+    const row = selectedRows.value[0]
+    isEdit.value = false
+    editData.value = {
+        domain: row.domain,
+        registrar: row.registrar,
+        registrar_link: row.registrar_link,
+        registrar_date: row.registrar_date,
+        expiry_date: row.expiry_date,
+        service_type: row.service_type,
+        status: row.status,
+        tgsend: row.tgsend,
+        st_tgsend: row.st_tgsend,
+        memo: row.memo
+    }
+    dialogVisible.value = true
+}
+
+const handleCopyInfo = () => {
+    if (!copyMode.value) {
+        if (selectedRows.value.length === 0) {
+            ElMessage.warning('请先选择一条记录')
+            return
+        }
+        if (selectedRows.value.length > 1) {
+            ElMessage.warning('只能选择一条记录作为复制来源')
+            return
+        }
+
+        copySource.value = selectedRows.value[0]
+        copyMode.value = true
+        selectedRows.value = []
+        domainTableRef.value?.clearSelection()
+        ElMessage.info('已选择复制来源，请在表格中选择目标记录后再次点击复制信息')
+        return
+    }
+
+    const source = copySource.value
+    if (!source) {
+        copyMode.value = false
+        return
+    }
+
+    const targets = selectedRows.value.filter((item: Domain) => item.id !== source.id)
+    if (targets.length === 0) {
+        ElMessage.warning('请选择需要修改信息的记录')
+        return
+    }
+
+    ElMessageBox.confirm(`确定将 ${source.domain} 的信息复制到选中的 ${targets.length} 条记录吗？`, '复制信息确认', {
+        type: 'warning'
+    }).then(async () => {
+        const loading = ElMessage.info({
+            message: '正在复制信息...',
+            duration: 0
+        })
+
+        let successCount = 0
+        let failCount = 0
+
+        const updatePromises = targets.map(async (target: Domain) => {
+            if (!target.id) {
+                failCount++
+                return
+            }
+
+            const updateData = {
+                domain: target.domain,
+                registrar: source.registrar,
+                registrar_link: source.registrar_link,
+                registrar_date: source.registrar_date,
+                expiry_date: source.expiry_date,
+                service_type: source.service_type,
+                status: source.status,
+                tgsend: source.tgsend,
+                st_tgsend: source.st_tgsend,
+                memo: source.memo
+            }
+
+            try {
+                await updateDomain(target.id, updateData)
+                successCount++
+            } catch (error) {
+                failCount++
+            }
+        })
+
+        await Promise.all(updatePromises)
+        loading.close()
+
+        if (failCount === 0) {
+            ElMessage.success(`成功复制到 ${successCount} 条记录`)
+        } else {
+            ElMessage.warning(`复制完成: 成功 ${successCount} 条, 失败 ${failCount} 条`)
+        }
+
+        copyMode.value = false
+        copySource.value = undefined
+        selectedRows.value = []
+        domainTableRef.value?.clearSelection()
+        await loadDomains()
+    }).catch(() => {})
 }
 
 const handleEdit = (row: Domain) => {
@@ -277,6 +404,12 @@ const handleSelectionChange = (selection: Domain[]) => {
     selectedRows.value = selection
 }
 
+const isRowSelectable = (row: Domain) => {
+    if (!copyMode.value) return true
+    if (!copySource.value?.id) return true
+    return row.id !== copySource.value.id
+}
+
 const handleBatchDelete = async () => {
     if (selectedRows.value.length === 0) return
 
@@ -297,7 +430,7 @@ const handleBatchDelete = async () => {
         let failCount = 0
 
         // 并行执行删除操作
-        const deletePromises = selectedRows.value.map(async (row) => {
+        const deletePromises = selectedRows.value.map(async (row: Domain) => {
             if (row.id) {
                 try {
                     await deleteDomain(row.id)
