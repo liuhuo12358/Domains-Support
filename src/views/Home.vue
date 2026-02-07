@@ -81,11 +81,16 @@
                 </template>
             </el-table-column>
             <el-table-column prop="registrar_date" label="注册时间" align="center" sortable />
-            <el-table-column prop="expiry_date" label="过期时间" align="center" sortable />
+            <el-table-column prop="expiry_date" label="过期时间" align="center" sortable>
+                <template #default="scope">
+                    <span>{{ formatExpiryDate(scope.row.expiry_date) }}</span>
+                </template>
+            </el-table-column>
             <el-table-column label="剩余时间" align="center" sortable
                 :sort-method="(a, b) => calculateRemainingDays(a.expiry_date) - calculateRemainingDays(b.expiry_date)">
                 <template #default="scope">
-                    <span :class="{ 'warning-text': calculateRemainingDays(scope.row.expiry_date) <= alertDays }">
+                    <span v-if="isPermanentExpiry(scope.row.expiry_date)">永久</span>
+                    <span v-else :class="{ 'warning-text': calculateRemainingDays(scope.row.expiry_date) <= alertDays }">
                         {{ calculateRemainingDays(scope.row.expiry_date) }}天
                     </span>
                 </template>
@@ -127,7 +132,7 @@
         <footer class="footer">
             <div class="footer-content">
                 <div class="copyright">
-                    <span>© 2025 Domains-Support v1.1.0</span>
+                    <span>© 2025 Domains-Support v1.2.0</span>
                     <span class="separator">|</span>
                     <span>作者：饭奇骏</span>
                     <span class="separator">|</span>
@@ -186,6 +191,7 @@ const domains = ref<Domain[]>([])
 const alertDays = ref(30)
 const alertConfig = ref<AlertConfig>()
 const refreshing = ref(false)
+const permanentExpiryDate = '2099-12-31'
 
 // 搜索和分页状态
 const searchQuery = ref('')
@@ -226,6 +232,13 @@ const handleSizeChange = (val: number) => {
 
 const handleCurrentChange = (val: number) => {
     currentPage.value = val
+}
+
+const isPermanentExpiry = (expiryDate: string) => expiryDate === permanentExpiryDate
+
+const formatExpiryDate = (expiryDate: string) => {
+    if (isPermanentExpiry(expiryDate)) return '永久'
+    return expiryDate
 }
 
 // 对话框相关的状态
@@ -528,6 +541,7 @@ const loadDomains = async () => {
 }
 
 const calculateRemainingDays = (expiryDate: string) => {
+    if (isPermanentExpiry(expiryDate)) return Number.MAX_SAFE_INTEGER
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const expiry = new Date(expiryDate)

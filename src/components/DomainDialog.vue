@@ -18,7 +18,7 @@
             </el-form-item>
             <el-form-item label="到期日期" prop="expiry_date">
                 <el-date-picker v-model="form.expiry_date" type="date" placeholder="选择到期日期" value-format="YYYY-MM-DD"
-                    id="expiry-date-input" autocomplete="off" clearable />
+                    :shortcuts="expiryDateShortcuts" id="expiry-date-input" autocomplete="off" clearable />
             </el-form-item>
             <el-form-item label="服务类型" prop="service_type">
                 <el-select v-model="form.service_type" placeholder="请选择服务类型" id="service-type-input" autocomplete="off"
@@ -83,6 +83,31 @@ const emit = defineEmits(['update:visible', 'submit'])
 
 const dialogVisible = ref(props.visible)
 const formRef = ref<FormInstance>()
+
+const parseBaseDate = (baseDate: string) => {
+    const parsed = new Date(baseDate)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+    return new Date()
+}
+
+const buildExpiryDate = (baseDate: string, yearsToAdd: number) => {
+    const base = parseBaseDate(baseDate)
+    return new Date(base.getFullYear() + yearsToAdd, base.getMonth(), base.getDate())
+}
+
+const expiryDateShortcuts = [
+    {
+        text: '永久',
+        value: () => new Date(2099, 11, 31)
+    },
+    ...Array.from({ length: 10 }, (_, index) => {
+        const years = index + 1
+        return {
+            text: `${years}年`,
+            value: () => buildExpiryDate(form.value.registrar_date, years)
+        }
+    })
+]
 
 // 默认表单数据
 const defaultForm: DomainForm = {
